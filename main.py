@@ -1,16 +1,18 @@
 #bot.py
+import json
 import os
-import time
 import re
+import time
+
 import discord
 import requests
-import json
-from dotenv import load_dotenv 
 from discord.ext import commands
 from discord.ext.commands import Bot
-listen_channels = [822943904109166592]
+from dotenv import load_dotenv
+
+listen_channels = [823334410945691709]
 itemList = []
-# 822943904109166592 - Channel ID for main discord 
+# 823334410945691709 - Channel ID for main discord 
 load_dotenv()  
 TOKEN = os.getenv('DISCORD_TOKEN') 
 bot = commands.Bot(command_prefix="!")
@@ -23,31 +25,32 @@ bot = commands.Bot(command_prefix="!")
 # Future
 
 
-
+minMargin = 40 #default margin requirments
+minVolume = 500000 #default volume requirements
 
 # load the mapping file here so we only have to load it once
-with open('remakeMapping.json','r') as mappingFile:
-        mappingData = mappingFile.read()
-mappingResponse = json.loads(mappingData) 
+with open('remakeMapping.json','r') as myfile:
+        mappingResponse = myfile.read()
+mappingData = json.loads(mappingResponse) 
 # mappingResponse['itemID']['keys'] ItemID is ID of item we want. 
 # Keys are data inside this dictionary 
 # examine | members (either True or False) | highalch | lowalch | value | icon | name |
 
 
-class Item: # useless? 
-    def __init__(self,itemId, highPrice, lowPrice, highTime, lowTime, highAlch, volume):
-        self.itemId = itemId
-        self.highPrice = highPrice #buy
-        self.lowPrice = lowPrice #sell
-        self.highTime = highTime #UNIX
-        self.lowTime = lowTime
-        self.highAlch = highAlch
-        self.volume = volume
+volumeUrl = 'https://prices.runescape.wiki/api/v1/osrs/volumes'
+latestUrl = 'https://prices.runescape.wiki/api/v1/osrs/latest'  #requested User Agent for the API
+headers = {
+    'User-Agent': 'Margin Bot',
+    'From': 'UnExploration@gmail.com'
+}
 
-
-
-
-
+latestResponse = requests.get(latestUrl,headers = headers) 
+latestData = latestResponse.json()
+latestData = latestData['data']
+#####################
+volumeResponse = requests.get(volumeUrl,headers = headers)
+volumeData = volumeResponse.json()
+volumeData = volumeData['data']
 
 @bot.event
 async def on_ready():
@@ -60,53 +63,76 @@ async def on_message(ctx):
         return
     await bot.process_commands(message = ctx)
 
+@bot.command(pass_context = True)
+async def vSet(ctx): # set variables like Margin/volume/ 
+    return
 
 @bot.command(pass_context = True)
-async def start(ctx):
-    volumeUrl = 'https://prices.runescape.wiki/api/v1/osrs/volumes'
-    latestUrl = 'ttps://prices.runescape.wiki/api/v1/osrs/latest'  #requested User Agent for the API
-    headers = {
-        'User-Agent': 'Margin Bot',
-        'From': 'UnExploration@gmail.com'
-    }
-    latestResponse = requests.get(latestUrl,headers = headers) 
+async def refreshData(ctx): # here we update global jsons
+    global latestResponse 
+    global volumeResponse 
+    latestResponse = requests.get(latestUrl,headers = headers)
     volumeResponse = requests.get(volumeUrl,headers = headers)
-
-    
-    
-
-    
-    
-
-
-    # print(response.json()) # we get the json back
-    
+    global volumeData
+    global latestData
     volumeData = volumeResponse.json()
     volumeData = volumeData['data']
 
-
-
-    obj = latestResponse.json()
-    obj = obj['data']
-    x = 0
-    for each in obj:
-        if obj[each]['high'] is not None and obj[each]['low'] is not None:
-           if obj[each]['high'] - obj[each]['low'] > 40:
-                x += 1
-                if volumeData.get(each) is not None and volumeData.get(each) > 1000000 :
-                    print(f'{each} ---- {volumeData[each]}')
+    latestData = latestResponse.json()
+    latestData = latestData['data']
     
-    print(x)
-    #text = json.dumps(obj,sort_keys=True,indent=4)
-    #print(text)
-    #collect data { data { 2:2} }
-    # map data together
-    # pass to data visual
+
+@bot.command(pass_context = True)
+async def start(ctx):
+    global latestData
+    await refreshData(ctx)
+
+    #latestData = latestResponse.json()
+    #latestData = latestData['data']
+    x = 0
+    for each in latestData:
+        if latestData[each]['high'] is not None and latestData[each]['low'] is not None:
+           if latestData[each]['high'] - latestData[each]['low'] > 40:
+                x += 1
+                if volumeData.get(each) is not None and volumeData.get(each) > 500000 :
+                    print(f'ID:{each} ---- Buy:{latestData[each]["high"]} Sell:{latestData[each]["low"]}---- Volume:{volumeData[each]} ----- Name:{mappingData[each]["name"]}')
+    print('---------------')
+
+@bot.command(pass_context = True)
+async def create(ctx):
+
+    global minMargin
+    global minVolume
+    priceEmbed = discord.Embed(color = discord.colour.Color.dark_purple())
+    priceEmbed.set_author(name = "OSRS Margin Bot")
+    await refreshData(ctx) # this should update global variables 
+    items   = "" #name
+    prices  = "" # buy and sell prices
+    margins_volumes = "" #magrin
+    volumes  = "" #volume of item
+    
+    for each in latestData:
+        if latestData[each]['high'] is not None and latestData[each]['low'] is not None:
+            if latestData[each]['high'] - latestData[each]['low'] > minMargin:
+                currentmargin = latestData[each]['high'] - latestData[each]['low']
+                if volumeData.get(each) is not None and volumeData.get(each) > minVolume:
+                    items   += f'{mappingData[each]["name"]} \n '
+                    prices  += f'Buy:{latestData[each]["high"]} - Sell:{latestData[each]["low"]} \n'
+                    margins_volumes += f'{currentmargin} --- {volumeData[each]}\n'
+                    # volumes  += f'{volumeData[each]} \n '
+
+    priceEmbed.add_field(name = "Items" , value = items)
+    priceEmbed.add_field(name = "Prices", value = prices)
+    priceEmbed.add_field(name = "Margin --- Volume", value = margins_volumes)
+    priceEmbed.set_footer(text = f'Min Margin : {minMargin} Min Volume : {minVolume}')
+    # priceEmbed.add_field(name = "Volume", value = volumes, inline = True)
+
+    await ctx.send(embed = priceEmbed)
 
 
 
-async def main():
-    #retrive data 
-    return
+
+
+
 
 bot.run(TOKEN)

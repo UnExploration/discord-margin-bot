@@ -6,4 +6,4 @@ with open('remakeMapping.json','r') as myfile:
 
 obj = json.loads(data)
 
-print(obj['5034'])
+print(obj['99']['name'])
