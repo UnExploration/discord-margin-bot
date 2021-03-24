@@ -6,6 +6,7 @@ import time
 
 import discord
 import asyncio
+import threading
 import requests
 from discord.ext import commands
 from discord.ext.commands import Bot
@@ -24,8 +25,8 @@ bot = commands.Bot(command_prefix="!")
 # Put Data in table
 # Notification? 
 # Future
-
-
+refreshDelay = 30 # in seconds as this is for asyncio.sleep
+stopRefresh = False
 minMargin = 40 #default margin requirments
 minVolume = 500000 #default volume requirements
 
@@ -81,7 +82,7 @@ async def make(ctx): # set variables like Margin/volume/
             await ctx.send(embed = errorEmbed)
     else:
         return # new value not a number
-    if valueToChange != "margin" and valueToChange != "volume":
+    if valueToChange != "margin" and valueToChange != "volume" and valueToChange != "refreshtime" and valueToChange != "refresh":
         return # 
     elif valueToChange == "margin":
         #changing minMargin
@@ -89,15 +90,16 @@ async def make(ctx): # set variables like Margin/volume/
     elif valueToChange == "volume":
         #changing minVolume   
         minVolume = newNumericValue
-
-    
-
-
-
+    elif valueToChange == "refreshtime":# #default 30
+        return
+        #make a min and max refresh time.     
+    elif valueToChange == "refresh":
+        return
+        #turn refresh on or off
     return
 
-@bot.command(pass_context = True)
-async def refreshData(ctx): # here we update global jsons
+@bot.command()
+async def refreshData(): # here we update global jsons
     global latestResponse 
     global volumeResponse 
     latestResponse = requests.get(latestUrl,headers = headers)
@@ -110,23 +112,6 @@ async def refreshData(ctx): # here we update global jsons
     latestData = latestResponse.json()
     latestData = latestData['data']
     
-
-@bot.command(pass_context = True)
-async def start(ctx):
-    global latestData
-    await refreshData(ctx)
-
-    #latestData = latestResponse.json()
-    #latestData = latestData['data']
-    x = 0
-    for item_id in latestData:
-        if latestData[item_id]['high'] is not None and latestData[item_id]['low'] is not None:
-           if latestData[item_id]['high'] - latestData[item_id]['low'] > 40:
-                x += 1
-                if volumeData.get(item_id) is not None and volumeData.get(item_id) > 500000 :
-                    print(f'item_id:{item_id} ---- Buy:{latestData[item_id]["high"]} Sell:{latestData[item_id]["low"]}---- Volume:{volumeData[item_id]} ----- Name:{mappingData[item_id]["name"]}')
-    print('---------------')
-
 @bot.command(pass_context = True)
 async def create(ctx): #this creates the intial embed and starts the fresh loop
 
@@ -134,8 +119,8 @@ async def create(ctx): #this creates the intial embed and starts the fresh loop
 
     priceEmbed = discord.Embed(color = discord.colour.Color.dark_purple())
     # priceEmbed.set_author(name = "OSRS Margin Bot")
-    await refreshData(ctx) # this should update global variables 
-    items   = "" #name
+    await refreshData() # this should update global variables 
+    items   = "" # name
     prices  = "" # buy and sell prices
     margins_volumes = "" #magrin
     # volumes  = "" #volume of item
@@ -172,6 +157,8 @@ async def create(ctx): #this creates the intial embed and starts the fresh loop
     priceEmbed.add_field(name = "Price", value = prices)
     priceEmbed.add_field(name = "Margin -- Volume", value = margins_volumes)
     priceEmbed.set_footer(text = f'Min Margin : {minMargin} Min Volume : {minVolume /1000}k')
+
+    
     if len(priceEmbed) > 6000: # work around for two tables? #check for length and sent two embeds? 
         errorEmbed = discord.Embed(color = discord.colour.Color.dark_red())
         errorEmbed.description = f'Embed exceeds 6000 Character limit. Please adjust settings. \n Current Minimum Margin : {minMargin} \n Current Minimum Volume : {minVolume}'
@@ -180,14 +167,59 @@ async def create(ctx): #this creates the intial embed and starts the fresh loop
         return
     else:
         await ctx.send(embed = priceEmbed)
+        
     # sort by limit * margin?
-
     
 
+async def startUpdateLoop(embedToEdit):
+    global stopRefresh
+    global refreshDelay
+   
+    while stopRefresh == False:
+        await asyncio.sleep(refreshDelay)
+        await updateEmbed(embedToEdit)
+
+
+async def updateEmbed(embedToUpdate):
+    global minMargin; global minVolume; global latestData; global mappingData; global volumeData
+
+    await refreshData()
+
+    newEmbed = discord.Embed(color = discord.colour.Color.green())
+
+
+    items   = "" # name
+    prices  = "" # buy and sell prices
+    margins_volumes = "" #magrin
+    # volumes  = "" #volume of item
+    itemList = []
+
+    for item_id in latestData:
+        if latestData[item_id]['high'] is not None and latestData[item_id]['low'] is not None:
+            if latestData[item_id]['high'] - latestData[item_id]['low'] > minMargin:
+                currentmargin = latestData[item_id]['high'] - latestData[item_id]['low']
+                if volumeData.get(item_id) is not None and volumeData.get(item_id) > minVolume:
+                    itemList.append({
+                        "item_id": item_id,
+                           "name": mappingData[item_id]['name'],
+                          "limit": mappingData[item_id]['limit'],
+                           "high": latestData[item_id]['high'],
+                            "low": latestData[item_id]['low'],
+                         "margin": currentmargin,
+                         "volume": round(volumeData.get(item_id)/1000)
+                })
+    itemList.sort(key=lambda item:item.get("margin"))
+    itemList.reverse()
+    for each in itemList:
+
+        items += f'{each["name"]} \n'
+        prices += f'B: {each["high"]} -- S: {each["low"]} \n'
+        margins_volumes += f'{each["margin"]} - {each["volume"]}k \n'
 
 
 
 
+    await embedToUpdate.edit(embed = newEmbed)
 
 
 bot.run(TOKEN)
