@@ -13,11 +13,12 @@ from discord.ext.commands import Bot
 from dotenv import load_dotenv
 from datetime import datetime
 
-listen_channels = [823334410945691709]
+listen_channels = [824788088299323422]
 
-# 823334410945691709 - Channel item_id for main discord 
+# 824788088299323422 - Channel item_id for main discord 
 load_dotenv()  
 TOKEN = os.getenv('DISCORD_TOKEN') 
+HEADER_FROM = os.getenv('HEADER_FROM')
 bot = commands.Bot(command_prefix="!")
 
 
@@ -25,10 +26,10 @@ bot = commands.Bot(command_prefix="!")
 # maybe move embed into object check for existing object in channel before making new object.
 # last update being red to signify stopped. 
 
-refreshDelay = 10 # in seconds as this is for asyncio.sleep
+refreshDelay = 5 # in seconds as this is for asyncio.sleep
 stopRefresh = False
-minMargin = 40 #default margin requirments that is used to generate table
-minVolume = 500000 #default volume requirements that is used to generate table
+minMargin = 15 #default margin requirments that is used to generate table
+minVolume = 200000 #default volume requirements that is used to generate table
 minRefreshTime = 1 #time in second for the embed refresh
 maxRefreshTime = 300
 
@@ -59,7 +60,7 @@ volumeUrl = 'https://prices.runescape.wiki/api/v1/osrs/volumes'
 latestUrl = 'https://prices.runescape.wiki/api/v1/osrs/latest'  #requested User Agent for the API
 headers = {
     'User-Agent': 'Margin Bot',
-    'From': 'UnExploration@gmail.com'
+    'From': f'{HEADER_FROM}'
 }
 
 latestResponse = requests.get(latestUrl,headers = headers) 
@@ -80,11 +81,15 @@ async def on_message(ctx):
     if ctx.channel.id not in listen_channels:
         return
     await bot.process_commands(message = ctx)
+    if ctx.content.startswith("!"):
+        await ctx.delete()    
+
 
 @bot.command(pass_context = True)
 async def stop(ctx):
     global stopRefresh
     stopRefresh = True
+    return
 
 
 
@@ -125,8 +130,7 @@ async def make(ctx): # set variables like Margin/volume/
         else:
             newNumericValue = refreshDelay
             
-        #make a min and max refresh time.     
-   
+        #make a min and max refresh time.  
     return
 
 @bot.command()
@@ -142,6 +146,7 @@ async def refreshData(): # here we update global jsons
 
     latestData = latestResponse.json()
     latestData = latestData['data']
+
     
 @bot.command(pass_context = True)
 async def create(ctx): #this creates the intial embed and starts the fresh loop
@@ -201,6 +206,8 @@ async def create(ctx): #this creates the intial embed and starts the fresh loop
         embedToEdit = await ctx.send(embed = priceEmbed)
         asyncio.create_task(startUpdateLoop(embedToEdit))
     # sort by limit * margin?
+    return
+    
     
 
 async def startUpdateLoop(embedToEdit):
