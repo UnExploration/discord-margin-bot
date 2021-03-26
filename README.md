@@ -18,4 +18,6 @@ If you want to use it for yourself. Populate an env file with your discord bot S
   
 !stop 
 
+https://i.gyazo.com/41243bb098e7cd7fb6eef96a3acc48de.mp4
+
 
