@@ -13,7 +13,7 @@ If you want to use it for yourself. Populate an env file with your discord bot S
 !create - makes a embed with default Margin and Volume 
 
 
-!make <margin|volume|refreshtime> <newvalue>
+!make <margin|volume|refreshtime> intvalue - refresh time in seconds 
   
   
 !stop 
