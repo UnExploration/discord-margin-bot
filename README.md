@@ -7,7 +7,7 @@ Uses a rich embed that continually updates with price info taken from the OSRSWi
 
 
 
-If you want to use it for yourself. Populate an env file with your discord bot Secret Key/Token as well as a user agent Header and finally change the ID of the channel.
+If you want to use it for yourself. Populate an env file with your discord bot Secret Key/Token as well as a user agent Header and finally change the ID of the channel the will be used
 
 
 !create - makes a embed with default Margin and Volume 
